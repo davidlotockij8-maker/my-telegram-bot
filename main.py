@@ -84,7 +84,7 @@ async def send_day_dz(callback: types.CallbackQuery):
 async def send_bell_schedule(callback: types.CallbackQuery):
     await callback.message.answer_photo(photo=PHOTO_URL, caption="⏰ Розклад дзвінків")
     await callback.answer()
-[05.05.2026 21:22] Лотоцький Давид: @dp.callback_query(F.data == "back_to_main")
+@dp.callback_query(F.data == "back_to_main")
 async def back_to_main(callback: types.CallbackQuery):
     await callback.message.edit_text("Вибери розділ:", reply_markup=get_main_menu())
     await callback.answer()
