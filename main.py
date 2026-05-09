@@ -12,7 +12,7 @@ from aiohttp import web
 TOKEN = "8788330371:AAGgPYbG0NdHlBqius-RLi12yaeT74lB4Mo"
 SPREADSHEET_ID = "1jLxy3AZaJ0zpDGiw47Gl3K0lGC1KANoXu-jGN-3wpPY" 
 
-# Твої перевірені GID:
+# Перевірені GID твоїх вкладок:
 GID_ACTUAL_DZ = "1164930445"
 GID_NEWS = "265453971"
 
@@ -59,6 +59,7 @@ async def fetch_news():
             content = await response.text()
             lines = content.splitlines()
             if lines:
+                # Беремо лише перший рядок (A1)
                 reader = csv.reader(StringIO(lines[0]))
                 row = next(reader)
                 return row[0].strip() if row and row[0].strip() else "Новин поки немає 📭"
@@ -77,35 +78,35 @@ async def fetch_dz_by_day(target_day):
             if not reader:
                 return "Таблиця порожня 📭"
 
-            # Шукаємо заголовок (він може бути не в 1 рядку)
-            headers = []
-            data_start_row = 0
-            for i, row in enumerate(reader):
-                if "День тижня" in row:
-                    headers = row
-                    data_start_row = i + 1
+            # 1. ШУКАЄМО ЗАГОЛОВКИ (пропускаємо будь-які порожні рядки зверху)
+            headers = None
+            data_start_idx = 0
+            for idx, row in enumerate(reader):
+                clean_row = [cell.strip() for cell in row]
+                if "День тижня" in clean_row:
+                    headers = clean_row
+                    data_start_idx = idx + 1
                     break
             
             if not headers:
-                return "Не вдалося знайти структуру таблиці 📋"
+                return "Не вдалося знайти структуру таблиці (заголовок 'День тижня' не знайдено) 📋"
 
-            # Шукаємо останній (найновіший) запис для цього дня
-            # Ми йдемо з кінця списку, щоб взяти останнє додане ДЗ
-            latest_dz_row = None
-            for row in reversed(reader[data_start_row:]):
+            # 2. ШУКАЄМО НАЙНОВІШИЙ ЗАПИС (йдемо знизу вгору)
+            latest_row = None
+            for row in reversed(reader[data_start_idx:]):
                 if len(row) > 1 and row[1].strip().lower() == target_day.lower():
-                    latest_dz_row = row
+                    latest_row = row
                     break
             
-            if latest_dz_row:
+            if latest_row:
                 subjects = []
                 for i in range(len(headers)):
-                    if i < len(latest_dz_row):
-                        header_name = headers[i].strip()
-                        cell_value = latest_dz_row[i].strip()
-                        # Пропускаємо технічні поля та порожні записи
-                        if header_name not in ['Позначка часу', 'День тижня'] and cell_value and cell_value.lower() != "нічого":
-                            subjects.append(f"🔹 **{header_name}**: {cell_value}")
+                    if i < len(latest_row):
+                        h_name = headers[i].strip()
+                        val = latest_row[i].strip()
+                        # Ігноруємо технічні колонки та порожні значення
+                        if h_name not in ['Позначка часу', 'День тижня'] and val and val.lower() != "нічого":
+                            subjects.append(f"🔹 **{h_name}**: {val}")
                 
                 return "\n".join(subjects) if subjects else f"На {target_day} ДЗ не записано 📭"
             
@@ -155,7 +156,7 @@ async def start_webserver():
 # --- ЗАПУСК ---
 async def main():
     asyncio.create_task(start_webserver())
-    print("Бот запущений на AWS...")
+    print("Бот запущений на AWS з розумним пошуком ДЗ...")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
