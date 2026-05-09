@@ -12,8 +12,8 @@ from aiohttp import web
 TOKEN = "8788330371:AAGgPYbG0NdHlBqius-RLi12yaeT74lB4Mo"
 SPREADSHEET_ID = "1jLxy3AZaJ0zpDGiw47Gl3K0lGC1KANoXu-jGN-3wpPY" 
 
-# Перевірені GID твоїх вкладок:
-GID_ACTUAL_DZ = "1164930445"
+# Прямий GID вкладки з відповідями (першоджерело)
+GID_RESPONSES = "924216808"
 GID_NEWS = "265453971"
 
 PHOTO_URL = "https://i.postimg.cc/cHTNtnj0/IMG-20260505-171528-302.jpg"
@@ -49,24 +49,23 @@ def get_dz_days_menu():
 async def cmd_start(message: types.Message):
     await message.answer("Привіт! Я помічник 8-Г класу. Вибери потрібний розділ:", reply_markup=get_main_menu())
 
-# --- ФУНКЦІЇ ЗЧИТУВАННЯ ТАБЛИЦІ ---
+# --- ФУНКЦІЯ НОВИН ---
 async def fetch_news():
     url = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/export?format=csv&gid={GID_NEWS}"
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as response:
-            if response.status != 200:
-                return "Помилка доступу до новин 🚧"
+            if response.status != 200: return "Помилка доступу до новин 🚧"
             content = await response.text()
             lines = content.splitlines()
             if lines:
-                # Беремо лише перший рядок (A1)
                 reader = csv.reader(StringIO(lines[0]))
                 row = next(reader)
                 return row[0].strip() if row and row[0].strip() else "Новин поки немає 📭"
             return "Новин поки немає 📭"
 
+# --- СПРОЩЕНА ФУНКЦІЯ ДЗ (НАПРЯМУ) ---
 async def fetch_dz_by_day(target_day):
-    url = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/export?format=csv&gid={GID_ACTUAL_DZ}"
+    url = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/export?format=csv&gid={GID_RESPONSES}"
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as response:
             if response.status != 200:
@@ -75,25 +74,15 @@ async def fetch_dz_by_day(target_day):
             f = StringIO(content)
             reader = list(csv.reader(f))
             
-            if not reader:
-                return "Таблиця порожня 📭"
+            if len(reader) < 2:
+                return "ДЗ поки що не записано в таблицю 📭"
 
-            # 1. ШУКАЄМО ЗАГОЛОВКИ (пропускаємо будь-які порожні рядки зверху)
-            headers = None
-            data_start_idx = 0
-            for idx, row in enumerate(reader):
-                clean_row = [cell.strip() for cell in row]
-                if "День тижня" in clean_row:
-                    headers = clean_row
-                    data_start_idx = idx + 1
-                    break
+            # У вкладці з відповідями заголовок ЗАВЖДИ у першому рядку
+            headers = [h.strip() for h in reader[0]]
             
-            if not headers:
-                return "Не вдалося знайти структуру таблиці (заголовок 'День тижня' не знайдено) 📋"
-
-            # 2. ШУКАЄМО НАЙНОВІШИЙ ЗАПИС (йдемо знизу вгору)
+            # Шукаємо останній (найсвіжіший) запис для дня, йдучи знизу вгору
             latest_row = None
-            for row in reversed(reader[data_start_idx:]):
+            for row in reversed(reader[1:]):
                 if len(row) > 1 and row[1].strip().lower() == target_day.lower():
                     latest_row = row
                     break
@@ -102,9 +91,9 @@ async def fetch_dz_by_day(target_day):
                 subjects = []
                 for i in range(len(headers)):
                     if i < len(latest_row):
-                        h_name = headers[i].strip()
+                        h_name = headers[i]
                         val = latest_row[i].strip()
-                        # Ігноруємо технічні колонки та порожні значення
+                        # Фільтруємо технічні стовпці та пусті/непотрібні значення
                         if h_name not in ['Позначка часу', 'День тижня'] and val and val.lower() != "нічого":
                             subjects.append(f"🔹 **{h_name}**: {val}")
                 
@@ -141,7 +130,7 @@ async def back_to_main(callback: types.CallbackQuery):
     await callback.message.edit_text("Головне меню:", reply_markup=get_main_menu())
     await callback.answer()
 
-# --- ВЕБ-СЕРВЕР ---
+# --- ВЕБ-СЕРВЕР ТА ЗАПУСК ---
 async def handle(request):
     return web.Response(text="Bot is running!")
 
@@ -153,11 +142,11 @@ async def start_webserver():
     port = int(os.environ.get("PORT", 10000))
     await web.TCPSite(runner, '0.0.0.0', port).start()
 
-# --- ЗАПУСК ---
 async def main():
     asyncio.create_task(start_webserver())
-    print("Бот запущений на AWS з розумним пошуком ДЗ...")
+    print("Бот запущений (Спрощена схема)...")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
     asyncio.run(main())
+    
