@@ -12,8 +12,9 @@ from aiohttp import web
 TOKEN = "8788330371:AAGgPYbG0NdHlBqius-RLi12yaeT74lB4Mo"
 SPREADSHEET_ID = "1jLxy3AZaJ0zpDGiw47Gl3K0lGC1KANoXu-jGN-3wpPY" 
 
-# Переконайся, що цей GID відповідає твоїй вкладці "Актуальне_ДЗ"
-GID_ACTUAL_DZ = "924216808" 
+# Твої актуальні GID:
+GID_ACTUAL_DZ = "1164930445"
+GID_NEWS = "265453971"
 
 PHOTO_URL = "https://i.postimg.cc/cHTNtnj0/IMG-20260505-171528-302.jpg"
 FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSfW4jXuoCFNvnQmj9xtVpFsjZMIAqibPikJvXKd3a7aus0xtw/viewform"
@@ -48,23 +49,28 @@ def get_dz_days_menu():
 async def cmd_start(message: types.Message):
     await message.answer("Привіт! Я помічник 8-Г класу. Вибери потрібний розділ:", reply_markup=get_main_menu())
 
-# --- ТАБЛИЦІ ---
+# --- ФУНКЦІЇ ЗЧИТУВАННЯ ТАБЛИЦІ ---
 async def fetch_news():
-    url = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/export?format=csv&sheet=Новини"
+    url = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/export?format=csv&gid={GID_NEWS}"
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as response:
             if response.status != 200:
-                return "Новин поки немає або вкладка не знайдена 🚧"
+                return "Помилка доступу до новин 🚧"
             content = await response.text()
-            return content.replace('"', '').strip()
+            lines = content.splitlines()
+            if lines:
+                # Читаємо перший рядок (A1)
+                reader = csv.reader(StringIO(lines[0]))
+                row = next(reader)
+                return row[0].strip() if row and row[0].strip() else "Новин поки немає 📭"
+            return "Новин поки немає 📭"
 
 async def fetch_dz_by_day(target_day):
     url = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/export?format=csv&gid={GID_ACTUAL_DZ}"
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as response:
             if response.status != 200:
-                return "Помилка доступу до таблиці 😔 Перевір доступ 'Усі, хто має посилання'."
-            
+                return "Помилка доступу до таблиці 😔"
             content = await response.text()
             f = StringIO(content)
             reader = csv.reader(f)
@@ -74,21 +80,17 @@ async def fetch_dz_by_day(target_day):
                 return "Таблиця порожня 📭"
             
             for row in reader:
-                # Перевіряємо, чи збігається день тижня (стовпець B)
                 if len(row) > 1 and row[1].strip().lower() == target_day.lower():
                     subjects = []
                     for i in range(len(headers)):
-                        # Виводимо предмети, де є текст домашнього завдання
                         if headers[i] not in ['Позначка часу', 'День тижня'] and i < len(row) and row[i].strip():
                             subjects.append(f"🔹 **{headers[i]}**: {row[i]}")
-                    
                     if not subjects:
                         return f"На {target_day} ДЗ не записано 📭"
                     return "\n".join(subjects)
-            
             return f"ДЗ на {target_day} ще не додали 📭"
 
-# --- ОБРОБНИКИ ---
+# --- ОБРОБНИКИ КНОПОК ---
 @dp.callback_query(F.data == "news_day")
 async def show_news(callback: types.CallbackQuery):
     text = await fetch_news()
@@ -117,9 +119,9 @@ async def back_to_main(callback: types.CallbackQuery):
     await callback.message.edit_text("Головне меню:", reply_markup=get_main_menu())
     await callback.answer()
 
-# --- СЕРВЕР (Для AWS/Railway) ---
+# --- ВЕБ-СЕРВЕР ---
 async def handle(request):
-    return web.Response(text="Bot is alive!")
+    return web.Response(text="Bot is running!")
 
 async def start_webserver():
     app = web.Application()
@@ -129,9 +131,10 @@ async def start_webserver():
     port = int(os.environ.get("PORT", 10000))
     await web.TCPSite(runner, '0.0.0.0', port).start()
 
+# --- ЗАПУСК ---
 async def main():
     asyncio.create_task(start_webserver())
-    print("Бот запущений...")
+    print("Бот запущений на AWS з новими GID...")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
