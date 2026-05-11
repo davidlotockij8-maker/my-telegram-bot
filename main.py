@@ -17,7 +17,7 @@ GID_RESPONSES = "924216808"
 GID_NEWS = "265453971"
 
 # Твоє нове фото для розкладу дзвінків
-PHOTO_URL = "https://ibb.co/TDDX1L1T"
+PHOTO_URL = "https://ibb.co/TDDX1L1T/image.png"
 FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSfW4jXuoCFNvnQmj9xtVpFsjZMIAqibPikJvXKd3a7aus0xtw/viewform"
 MONOBANK_URL = "https://send.monobank.ua/jar/3H7WAgDmnQ"
 
