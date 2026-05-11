@@ -16,15 +16,16 @@ SPREADSHEET_ID = "1jLxy3AZaJ0zpDGiw47Gl3K0lGC1KANoXu-jGN-3wpPY"
 GID_RESPONSES = "924216808"
 GID_NEWS = "265453971"
 
-# Твоє нове фото для розкладу дзвінків
-PHOTO_URL = "https://ibb.co/TDDX1L1T/image.png"
+# ТВОЄ НОВЕ ФОТО РОЗКЛАДУ (пряме посилання)
+PHOTO_URL = "https://i.ibb.co/3s6v7wz/image.png"
+
 FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSfW4jXuoCFNvnQmj9xtVpFsjZMIAqibPikJvXKd3a7aus0xtw/viewform"
 MONOBANK_URL = "https://send.monobank.ua/jar/3H7WAgDmnQ"
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-# --- ГОЛОВНЕ МЕНЮ ---
+# --- МЕНЮ ---
 def get_main_menu():
     builder = InlineKeyboardBuilder()
     builder.row(types.InlineKeyboardButton(text="📰 Новина дня", callback_data="news_day"))
@@ -47,12 +48,12 @@ def get_dz_days_menu():
 async def cmd_start(message: types.Message):
     await message.answer("Привіт! Я помічник 8-Г класу. Вибери потрібний розділ:", reply_markup=get_main_menu())
 
-# --- ФУНКЦІЯ НОВИН (ТЕКСТ + ФОТО) ---
+# --- НОВИНИ ---
 async def fetch_news():
     url = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/export?format=csv&gid={GID_NEWS}"
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as response:
-            if response.status != 200: return "Помилка доступу до новин 🚧", None
+            if response.status != 200: return "Помилка доступу 🚧", None
             content = await response.text()
             lines = content.splitlines()
             if lines:
@@ -72,12 +73,12 @@ async def show_news(callback: types.CallbackQuery):
         await callback.message.answer(f"📢 **ОСТАННЯ НОВИНА:**\n\n{text}", parse_mode="Markdown")
     await callback.answer()
 
-# --- ФУНКЦІЯ ДЗ (НАПРЯМУ З ВІДПОВІДЕЙ) ---
+# --- ДЗ ---
 async def fetch_dz_by_day(target_day):
     url = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/export?format=csv&gid={GID_RESPONSES}"
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as response:
-            if response.status != 200: return "Помилка доступу до таблиці 😔"
+            if response.status != 200: return "Помилка доступу 😔"
             content = await response.text()
             reader = list(csv.reader(StringIO(content)))
             if len(reader) < 2: return "ДЗ поки порожньо 📭"
@@ -106,6 +107,7 @@ async def send_day_dz(callback: types.CallbackQuery):
 
 @dp.callback_query(F.data == "bell_schedule")
 async def send_bell_schedule(callback: types.CallbackQuery):
+    # Використовуємо PHOTO_URL, який ми оновили вгорі
     await callback.message.answer_photo(photo=PHOTO_URL, caption="⏰ **Розклад дзвінків**")
     await callback.answer()
 
@@ -123,7 +125,7 @@ async def main():
     await runner.setup()
     port = int(os.environ.get("PORT", 10000))
     await web.TCPSite(runner, '0.0.0.0', port).start()
-    print("Бот запущено (Фото + Спрощена схема)...")
+    print("Бот запущено...")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
