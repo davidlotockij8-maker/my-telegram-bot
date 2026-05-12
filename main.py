@@ -17,7 +17,7 @@ GID_RESPONSES = "924216808"  # Вкладка з ДЗ
 GID_NEWS = "265453971"       # Вкладка з Новинами
 
 # Пряме посилання на розклад дзвінків (якщо він рідко змінюється)
-PHOTO_ROZKLAD = "https://i.postimg.cc/8C709mS8/image.jpg"
+PHOTO_ROZKLAD = "https://i.postimg.cc/Wb5zqp0n/IMG-20260505-171528-302.jpg"
 
 FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSfW4jXuoCFNvnQmj9xtVpFsjZMIAqibPikJvXKd3a7aus0xtw/viewform"
 MONOBANK_URL = "https://send.monobank.ua/jar/3H7WAgDmnQ"
