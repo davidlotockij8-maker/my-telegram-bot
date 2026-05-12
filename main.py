@@ -8,16 +8,16 @@ from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiohttp import web
 
-# --- НАЛАШТУВАННЯ ---
+# --- НАЛАШТУВАННЯ (Перевір ці дані!) ---
 TOKEN = "8788330371:AAGgPYbG0NdHlBqius-RLi12yaeT74lB4Mo"
 SPREADSHEET_ID = "1jLxy3AZaJ0zpDGiw47Gl3K0lGC1KANoXu-jGN-3wpPY" 
 
-# GID вкладок
-GID_RESPONSES = "924216808"
-GID_NEWS = "265453971"
+# GID вкладок у твоїй таблиці
+GID_RESPONSES = "924216808"  # Вкладка з ДЗ
+GID_NEWS = "265453971"       # Вкладка з Новинами
 
-# ТВОЄ НОВЕ ФОТО РОЗКЛАДУ (пряме посилання)
-PHOTO_URL = "https://i.ibb.co/3s6v7wz/image.png"
+# Пряме посилання на розклад дзвінків (якщо він рідко змінюється)
+PHOTO_ROZKLAD = "https://i.postimg.cc/8C709mS8/image.jpg"
 
 FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSfW4jXuoCFNvnQmj9xtVpFsjZMIAqibPikJvXKd3a7aus0xtw/viewform"
 MONOBANK_URL = "https://send.monobank.ua/jar/3H7WAgDmnQ"
@@ -25,7 +25,7 @@ MONOBANK_URL = "https://send.monobank.ua/jar/3H7WAgDmnQ"
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-# --- МЕНЮ ---
+# --- ГОЛОВНЕ МЕНЮ ---
 def get_main_menu():
     builder = InlineKeyboardBuilder()
     builder.row(types.InlineKeyboardButton(text="📰 Новина дня", callback_data="news_day"))
@@ -48,32 +48,43 @@ def get_dz_days_menu():
 async def cmd_start(message: types.Message):
     await message.answer("Привіт! Я помічник 8-Г класу. Вибери потрібний розділ:", reply_markup=get_main_menu())
 
-# --- НОВИНИ ---
-async def fetch_news():
+# --- ЛОГІКА НОВИН (З ТАБЛИЦІ) ---
+@dp.callback_query(F.data == "news_day")
+async def show_news(callback: types.CallbackQuery):
     url = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/export?format=csv&gid={GID_NEWS}"
     async with aiohttp.ClientSession() as session:
         async with session.get(url) as response:
-            if response.status != 200: return "Помилка доступу 🚧", None
+            if response.status != 200:
+                await callback.message.answer("Помилка доступу до таблиці новин 🚧")
+                return
             content = await response.text()
-            lines = content.splitlines()
-            if lines:
-                reader = csv.reader(StringIO(lines[0]))
-                row = next(reader)
+            reader = list(csv.reader(StringIO(content)))
+            if reader and len(reader) > 0:
+                row = reader[0]
                 text = row[0].strip() if len(row) > 0 else "Новин поки немає 📭"
-                photo = row[1].strip() if len(row) > 1 and row[1].strip() else None
-                return text, photo
-            return "Новин поки немає 📭", None
+                photo_url = row[1].strip() if len(row) > 1 else ""
 
-@dp.callback_query(F.data == "news_day")
-async def show_news(callback: types.CallbackQuery):
-    text, photo_url = await fetch_news()
-    if photo_url:
-        await callback.message.answer_photo(photo=photo_url, caption=f"📢 **ОСТАННЯ НОВИНА:**\n\n{text}", parse_mode="Markdown")
-    else:
-        await callback.message.answer(f"📢 **ОСТАННЯ НОВИНА:**\n\n{text}", parse_mode="Markdown")
+                if photo_url and photo_url.startswith("http"):
+                    try:
+                        await callback.message.answer_photo(photo=photo_url, caption=f"📢 **ОСТАННЯ НОВИНА:**\n\n{text}", parse_mode="Markdown")
+                    except Exception:
+                        await callback.message.answer(f"📢 **ОСТАННЯ НОВИНА:**\n\n{text}\n\n*(Фото не завантажилось, перевір посилання)*")
+                else:
+                    await callback.message.answer(f"📢 **ОСТАННЯ НОВИНА:**\n\n{text}", parse_mode="Markdown")
+            else:
+                await callback.message.answer("Розділ новин порожній 📭")
     await callback.answer()
 
-# --- ДЗ ---
+# --- ЛОГІКА РОЗКЛАДУ ДЗВІНКІВ ---
+@dp.callback_query(F.data == "bell_schedule")
+async def send_bell_schedule(callback: types.CallbackQuery):
+    try:
+        await callback.message.answer_photo(photo=PHOTO_ROZKLAD, caption="⏰ **Розклад дзвінків**")
+    except Exception as e:
+        await callback.message.answer(f"Помилка завантаження фото розкладу. Перевір PHOTO_ROZKLAD у коді.")
+    await callback.answer()
+
+# --- ЛОГІКА ДЗ ---
 async def fetch_dz_by_day(target_day):
     url = f"https://docs.google.com/spreadsheets/d/{SPREADSHEET_ID}/export?format=csv&gid={GID_RESPONSES}"
     async with aiohttp.ClientSession() as session:
@@ -84,6 +95,7 @@ async def fetch_dz_by_day(target_day):
             if len(reader) < 2: return "ДЗ поки порожньо 📭"
             headers = [h.strip() for h in reader[0]]
             latest_row = None
+            # Шукаємо останній доданий запис для цього дня
             for row in reversed(reader[1:]):
                 if len(row) > 1 and row[1].strip().lower() == target_day.lower():
                     latest_row = row
@@ -105,18 +117,13 @@ async def send_day_dz(callback: types.CallbackQuery):
     await callback.message.answer(f"📅 **ДЗ на {day}:**\n\n{text}", parse_mode="Markdown")
     await callback.answer()
 
-@dp.callback_query(F.data == "bell_schedule")
-async def send_bell_schedule(callback: types.CallbackQuery):
-    # Використовуємо PHOTO_URL, який ми оновили вгорі
-    await callback.message.answer_photo(photo=PHOTO_URL, caption="⏰ **Розклад дзвінків**")
-    await callback.answer()
-
 @dp.callback_query(F.data == "back_to_main")
 async def back_to_main(callback: types.CallbackQuery):
     await callback.message.edit_text("Головне меню:", reply_markup=get_main_menu())
     await callback.answer()
 
-async def handle(request): return web.Response(text="Bot is running!")
+# --- ЗАПУСК ---
+async def handle(request): return web.Response(text="Bot is alive!")
 
 async def main():
     app = web.Application()
@@ -125,9 +132,8 @@ async def main():
     await runner.setup()
     port = int(os.environ.get("PORT", 10000))
     await web.TCPSite(runner, '0.0.0.0', port).start()
-    print("Бот запущено...")
+    print("Помогатор-8Г запущений!")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":
     asyncio.run(main())
-                
