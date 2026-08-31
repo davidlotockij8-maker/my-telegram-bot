@@ -8,7 +8,7 @@ from aiogram.filters import Command
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiohttp import web
 
-# --- НАЛАШТУВАННЯ (Перевір ці дані!) ---
+# --- НАЛАШТУВАННЯ ---
 TOKEN = "8788330371:AAGgPYbG0NdHlBqius-RLi12yaeT74lB4Mo"
 SPREADSHEET_ID = "1jLxy3AZaJ0zpDGiw47Gl3K0lGC1KANoXu-jGN-3wpPY" 
 
@@ -16,7 +16,7 @@ SPREADSHEET_ID = "1jLxy3AZaJ0zpDGiw47Gl3K0lGC1KANoXu-jGN-3wpPY"
 GID_RESPONSES = "924216808"  # Вкладка з ДЗ
 GID_NEWS = "265453971"       # Вкладка з Новинами
 
-# Пряме посилання на розклад дзвінків (якщо він рідко змінюється)
+# Пряме посилання на розклад дзвінків
 PHOTO_ROZKLAD = "https://i.postimg.cc/Wb5zqp0n/IMG-20260505-171528-302.jpg"
 
 FORM_URL = "https://docs.google.com/forms/d/e/1FAIpQLSfW4jXuoCFNvnQmj9xtVpFsjZMIAqibPikJvXKd3a7aus0xtw/viewform"
@@ -38,7 +38,15 @@ def get_main_menu():
 
 def get_dz_days_menu():
     builder = InlineKeyboardBuilder()
-    days = [("Понеділок", "day_Понеділок"), ("Вівторок", "day_Вівторок"), ("Середа", "day_Середа"), ("Четвер", "day_Четвер"), ("П'ятниця", "day_П'ятниця")]
+    # Текст на кнопці -> Точна назва з Google Форми
+    days = [
+        ("Понеділок", "day_Понеділок"),
+        ("Вівторок", "day_Вівторок"),
+        ("Середа", "day_Середа"),
+        ("Четвер А", "day_Четвер(А)"),
+        ("Четвер Б", "day_Четвер(В)"),
+        ("П'ятниця", "day_П'ятниця")
+    ]
     for text, callback in days:
         builder.row(types.InlineKeyboardButton(text=text, callback_data=callback))
     builder.row(types.InlineKeyboardButton(text="⬅️ Назад", callback_data="back_to_main"))
@@ -56,6 +64,7 @@ async def show_news(callback: types.CallbackQuery):
         async with session.get(url) as response:
             if response.status != 200:
                 await callback.message.answer("Помилка доступу до таблиці новин 🚧")
+                await callback.answer()
                 return
             content = await response.text()
             reader = list(csv.reader(StringIO(content)))
@@ -80,8 +89,8 @@ async def show_news(callback: types.CallbackQuery):
 async def send_bell_schedule(callback: types.CallbackQuery):
     try:
         await callback.message.answer_photo(photo=PHOTO_ROZKLAD, caption="⏰ **Розклад дзвінків**")
-    except Exception as e:
-        await callback.message.answer(f"Помилка завантаження фото розкладу. Перевір PHOTO_ROZKLAD у коді.")
+    except Exception:
+        await callback.message.answer("Помилка завантаження фото розкладу. Перевір PHOTO_ROZKLAD у коді.")
     await callback.answer()
 
 # --- ЛОГІКА ДЗ ---
@@ -95,7 +104,6 @@ async def fetch_dz_by_day(target_day):
             if len(reader) < 2: return "ДЗ поки порожньо 📭"
             headers = [h.strip() for h in reader[0]]
             latest_row = None
-            # Шукаємо останній доданий запис для цього дня
             for row in reversed(reader[1:]):
                 if len(row) > 1 and row[1].strip().lower() == target_day.lower():
                     latest_row = row
@@ -112,7 +120,7 @@ async def show_dz_days(callback: types.CallbackQuery):
 
 @dp.callback_query(F.data.startswith("day_"))
 async def send_day_dz(callback: types.CallbackQuery):
-    day = callback.data.split("_")[1]
+    day = callback.data.split("day_")[1]
     text = await fetch_dz_by_day(day)
     await callback.message.answer(f"📅 **ДЗ на {day}:**\n\n{text}", parse_mode="Markdown")
     await callback.answer()
@@ -123,7 +131,8 @@ async def back_to_main(callback: types.CallbackQuery):
     await callback.answer()
 
 # --- ЗАПУСК ---
-async def handle(request): return web.Response(text="Bot is alive!")
+async def handle(request): 
+    return web.Response(text="Bot is alive!")
 
 async def main():
     app = web.Application()
@@ -137,3 +146,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+                                                            
